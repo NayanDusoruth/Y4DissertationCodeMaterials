@@ -108,9 +108,9 @@ def saveFigure(directory, fileName, fig):
 
 # converts lambda function to string 
 def lambdaAsString(lambdaFunc):
-    print("func: ",lambdaFunc)
-    print(type(lambdaFunc))
-    print(lambdaFunc(1,1,1))
+    #print("func: ",lambdaFunc)
+    #print(type(lambdaFunc))
+    #print(lambdaFunc(1,1,1))
     funcString = str(inspect.getsourcelines(lambdaFunc)[0])
     funcString = funcString.strip("['\\n']").split(" = ")[1]
     print(funcString)
@@ -239,7 +239,7 @@ class simulation():
                      "spectralFunction":self.spectralFunctionStr,
                      "spectralPrefactor":self.spectralPrefactor,
                      "bandwidth":self.bandwidth,
-                     "nBathSites":self.nBathSites,
+                     "nBathSites":int(self.nBathSites),
                      "epsilon":self.epsilon,
                      "beta":self.beta,
                      "mu":self.mu,
@@ -368,6 +368,7 @@ class simulation():
         inch = 2.54
         fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
         ax = fig.add_subplot()
+        pltTimesNewRoman()
         
         ax.set_xlabel("$\omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("$J(\omega)$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
@@ -398,6 +399,7 @@ class simulation():
         # fig setup
         inch = 2.54
         fig, ax = plt.subplots(1,2,figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
+        pltTimesNewRoman()
         
         ax[0].tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="out", length=2, rotation=45)
         ax[1].tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="out", length=2, rotation=45)
@@ -433,6 +435,7 @@ class simulation():
         inch = 2.54
         fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
         ax = fig.add_subplot()
+        pltTimesNewRoman()
         
         ax.set_xlabel("Time",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("System occupation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
@@ -457,6 +460,7 @@ class simulation():
         inch = 2.54
         fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
         ax = fig.add_subplot()
+        pltTimesNewRoman()
         
         ax.set_xlabel("$\Omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("Occupation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
@@ -471,6 +475,7 @@ class simulation():
             bathDensity = self.bathDensity[i]
             time = self.times[i]
             ax.plot(self.omegas,bathDensity, color= plt.cm.coolwarm(time/lastTime))
+            #print("colour: ", plt.cm.coolwarm(time/lastTime), " = ", time/lastTime)
             
         # plot fermi dirac distribution
         fermiOmegas = np.linspace(-self.bandwidth*bandwidthMultiplier, self.bandwidth*bandwidthMultiplier, self.nBathSites)
@@ -490,19 +495,19 @@ class simulation():
 spectralFunction = lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)
 prefactor = 0.005
 n=300
-bandwidth = 1
+bandwidth = 0.2
 energyScale = 0
 beta = 1
-mu = 1
+mu = 0
 
-dt = 0.1
-tMax = 50
+dt = 100
+tMax = 200
 
 sim = simulation("testSim", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
 sim.setupSim()
 #sim.plotSpectralFunction()
-sim.simulationCompute(dt, tMax)
-sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
+#sim.simulationCompute(dt, tMax)
+#sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
 #sim.save("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
 #sim.load("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode", "testSim")
 #print("Hamiltonian: ")

@@ -8,6 +8,6 @@
    "epsilon": 0,
    "beta": 1,
    "mu": 1,
-   "timeSteps": 999,
-   "tMax": 99.80000000000072
+   "timeSteps": 500,
+   "tMax": 49.900000000000006
 }

@@ -1,0 +1,13 @@
+{
+   "name": "beta_4",
+   "saveCorrelations": true,
+   "spectralFunction": "lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)",
+   "spectralPrefactor": 0.005,
+   "bandwidth": 1,
+   "nBathSites": 300,
+   "epsilon": 0,
+   "beta": 2.0,
+   "mu": 1,
+   "timeSteps": 10000,
+   "tMax": 999.9000000000001
+}

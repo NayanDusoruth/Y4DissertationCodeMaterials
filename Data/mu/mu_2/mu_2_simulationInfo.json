@@ -1,0 +1,13 @@
+{
+   "name": "mu_2",
+   "saveCorrelations": true,
+   "spectralFunction": "lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)",
+   "spectralPrefactor": 0.005,
+   "bandwidth": 1,
+   "nBathSites": 300,
+   "epsilon": 0,
+   "beta": 1,
+   "mu": 1.0,
+   "timeSteps": 10000,
+   "tMax": 999.9000000000001
+}
