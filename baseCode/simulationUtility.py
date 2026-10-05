@@ -216,7 +216,6 @@ class simulation():
         # setup analytical thermalization object
         self.analyticalThermalization = analyticalThermalization(spectralFunction,  spectralPrefactor, bandwidth, epsilon, beta, mu)
         self.analyticalSystemOccupancy = self.analyticalThermalization.computeOccupancy()
-        print("occupancy: ", self.analyticalSystemOccupancy, " ", type(self.analyticalSystemOccupancy))
     
     # ----------------------------------------------
     # Saving and loading methods
@@ -571,6 +570,58 @@ class simulation():
     
     
 # =============================================================================
+# dynamic map dual setup
+# =============================================================================
+class dualSimulation():
+
+    # ----------------------------------------------
+    # Constructor methods
+    # ----------------------------------------------
+    def __init__(self, name, spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, usePytorch=True, saveCorrelations=False):
+        self.name = name
+        self.occupiedSimulation = simulation(name+"_occupied", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=1)
+        self.unoccupiedSimulation = simulation(name+"_unoccupied", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=0)
+        self.occupiedSimulation.setupSim()
+        self.unoccupiedSimulation.setupSim()
+    # ----------------------------------------------
+    # Saving and loading methods
+    # ----------------------------------------------
+    def save(self, directory):
+        createFolder(directory, self.name)
+        workingDirectory = directory + "/" + self.name
+        
+        self.occupiedSimulation.save(workingDirectory)
+        self.unoccupiedSimulation.save(workingDirectory)
+    
+    def load(self, directory, folderName):
+        workingDirectory = directory + "/" +folderName
+        if(os.path.isdir(workingDirectory)):
+            self.name = folderName
+            self.occupiedSimulation.load(workingDirectory, self.name+"_occupied")
+            self.occupiedSimulation.setupSim()
+            self.unoccupiedSimulation.load(workingDirectory, self.name+"_unoccupied")
+            self.unoccupiedSimulation.setupSim()
+    
+    def saveAll(self):
+        pass
+    
+    # ----------------------------------------------
+    # Analytical methods
+    # ----------------------------------------------
+    def computeDynamicMap(self):
+        pass
+    
+    # ----------------------------------------------
+    # Simulation methods
+    # ----------------------------------------------
+    def simulateCompute(self, dt, tMax):
+        self.occupiedSimulation.simulationCompute(dt, tMax)
+        self.unoccupiedSimulation.simulationCompute(dt, tMax)
+    # ----------------------------------------------
+    # Plotting methods
+    # ----------------------------------------------
+    
+# =============================================================================
 # Testing
 # =============================================================================
 spectralFunction = lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)
@@ -584,14 +635,14 @@ mu = 1
 dt = 1
 tMax = 100
 
-sim = simulation("testSim", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
-sim.setupSim()
+#sim = simulation("testSim", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
+#sim.setupSim()
 
 #thermalization = analyticalThermalization(spectralFunction, prefactor, bandwidth, energyScale, beta, mu)
 #thermalization.plotA()
 #print("occupancy: ", thermalization.computeOccupancy())
 #sim.plotSpectralFunction()
-sim.simulationCompute(dt, tMax)
+#sim.simulationCompute(dt, tMax)
 #sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
 #sim.save("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
 #sim.load("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode", "testSim")
@@ -609,4 +660,4 @@ print(sim.correlations[list(sim.correlations.keys())[-1]])"""
 #sim.plotSystemOccupation()
 #sim.plotBathOccupation()
 
-sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
+#sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
