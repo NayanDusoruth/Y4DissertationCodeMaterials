@@ -118,6 +118,73 @@ def lambdaAsString(lambdaFunc):
 
 
 # =============================================================================
+# Analytical thermalization object
+# Contains the maths for the analytical thermalized system occupation
+# =============================================================================
+class analyticalThermalization():
+    
+    def __init__(self, spectralFunction, spectralPrefactor, bandwidth, systemEnergy, beta, mu, eta=0.0001):
+        self.spectralPrefactor = spectralPrefactor
+        self.bandwidth = bandwidth
+        self.systemEnergy = systemEnergy
+        self.beta = beta
+        self.mu = mu
+        self.eta = eta
+        self.spectralFunction = spectralFunction
+        
+
+    def computeLambda(self, omegaVal):
+        integrand = lambda omega: self.spectralFunction(omega, self.spectralPrefactor, self.bandwidth) / (omegaVal - omega)
+        integralBelow = scipy.integrate.quad(integrand, -bandwidth, omegaVal-self.eta, points=[-bandwidth, omegaVal],limit=1000, complex_func=False)
+        integralAbove = scipy.integrate.quad(integrand, omegaVal+self.eta, bandwidth, points=[bandwidth, omegaVal],limit=1000, complex_func=False)
+        integral = integralBelow[0] + integralAbove[0]
+        return integral
+    
+    def computeA(self, omegaVal):
+        spectralValue = self.spectralFunction(omegaVal, self.spectralPrefactor, self.bandwidth)
+        lambdaVal = self.computeLambda(omegaVal)
+        value = (2*np.pi*spectralValue) / ((omegaVal - self.systemEnergy - lambdaVal)**2 + (np.pi)**2*spectralValue**2)
+        return value
+    
+    def occupancyIntegrand(self, omega):
+        return self.computeA(omega) / (1 + np.exp(self.beta*(omega-self.mu)))
+    
+    def computeOccupancy(self):
+        return float(scipy.integrate.quad(self.occupancyIntegrand, -self.bandwidth+self.eta, self.bandwidth-self.eta)[0] / (2*np.pi))
+    
+    def plotA(self,figParams=figStandardParams, display=True):
+        # fig setup
+        inch = 2.54
+        fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
+        ax = fig.add_subplot()
+        pltTimesNewRoman()
+        
+                
+        ax.set_xlabel("$\omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
+        ax.set_ylabel("$A(\omega)$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
+        
+        ax.tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="in", length=2)
+        
+        ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
+        
+        # produce data for function plot
+        xData = np.linspace(-self.bandwidth,self.bandwidth,figParams["nFuncPoints"])
+        yData = [self.computeA(x) for x in xData]
+        
+        # plot function data
+        ax.plot(xData, yData, linewidth=figParams["markerWidth"])
+
+        # display plot if desired
+        if(display):
+            plt.show()
+            
+        # return fig
+        return fig
+        
+        
+
+
+# =============================================================================
 # simulation class object
 # =============================================================================
 class simulation():
@@ -125,13 +192,14 @@ class simulation():
     # ----------------------------------------------
     # Constructor methods
     # ----------------------------------------------
-    def __init__(self, name, spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, usePytorch=True, saveCorrelations=False):
+    def __init__(self, name, spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, initialSystemOccupation=0,usePytorch=True, saveCorrelations=False):
         # simulation configs
         self.name = name
         self.usePytorch = usePytorch
         self.saveCorrelations = saveCorrelations
         
         # assign initial variables
+        self.initialSystemOccupation = initialSystemOccupation
         self.spectralFunction = spectralFunction # assume (omega, prefactor, bandwidth) args
         self.spectralFunctionStr = lambdaAsString(spectralFunction)
         self.spectralPrefactor = spectralPrefactor
@@ -145,6 +213,10 @@ class simulation():
         # intialise density array as None - there are reasons for this
         self.density = None
         
+        # setup analytical thermalization object
+        self.analyticalThermalization = analyticalThermalization(spectralFunction,  spectralPrefactor, bandwidth, epsilon, beta, mu)
+        self.analyticalSystemOccupancy = self.analyticalThermalization.computeOccupancy()
+        print("occupancy: ", self.analyticalSystemOccupancy, " ", type(self.analyticalSystemOccupancy))
     
     # ----------------------------------------------
     # Saving and loading methods
@@ -209,6 +281,9 @@ class simulation():
         self.evaluateSpectralFunction()
         self.initaliseHamiltonian()
         
+        self.analyticalThermalization = analyticalThermalization(self.pectralFunction, self.spectralPrefactor, self.bandwidth, self.epsilon, self.beta, self.mu)
+        self.analyticalSystemOccupancy = self.analyticalThermalization.computeOccupancy()
+        
         if(loadData["saveCorrelations"]):
             self.correlations = loadData["correlations"]
         else:
@@ -234,6 +309,7 @@ class simulation():
         
         # save general info to a json file
         #print(lambdaAsString(self.spectralFunction))
+        print()
         infoDict ={"name":self.name,
                      "saveCorrelations":True,
                      "spectralFunction":self.spectralFunctionStr,
@@ -244,7 +320,8 @@ class simulation():
                      "beta":self.beta,
                      "mu":self.mu,
                      "timeSteps":len(list(self.correlations.keys())),
-                     "tMax":list(self.correlations.keys())[-1],
+                     "tMax":float(list(self.correlations.keys())[-1]),
+                     "analyticalSystemOccupation":self.analyticalSystemOccupancy
                      }
         saveDictAsJson(workingDirectory, self.name+"_simulationInfo", infoDict)
         
@@ -253,6 +330,8 @@ class simulation():
         saveFigure(workingDirectory, self.name+"_InitialCorrelationMatrix",self.plotCorrelationMatrix(0,display=False))
         saveFigure(workingDirectory, self.name+"_systemOccupation",self.plotSystemOccupation(display=False))
         saveFigure(workingDirectory, self.name+"_bathOccupation",self.plotBathOccupation(display=False))
+        saveFigure(workingDirectory, self.name+"_AomegaPlot",self.analyticalThermalization.plotA(display=False))
+        
         
     # ----------------------------------------------
     # simulation methods
@@ -278,7 +357,7 @@ class simulation():
     def computeInitialCorrelation(self):
         # code copied from provided code
         CorrelationSiteBasis_0 = np.zeros_like(self.hamiltonian)
-        np.fill_diagonal(CorrelationSiteBasis_0,[0]+[self.fermi(o) for o in self.omegas])
+        np.fill_diagonal(CorrelationSiteBasis_0,[self.initialSystemOccupation]+[self.fermi(o) for o in self.omegas])
         
         self.correlations = {0:CorrelationSiteBasis_0}
     
@@ -332,7 +411,7 @@ class simulation():
         self.times = list(self.correlations.keys())
         
         if(self.density is None): # if there is no density list yet (so nothing to append to)
-            self.density = np.array([ val [0,0] for key, val in self.correlations.items()])
+            self.density = np.array([ val[0,0] for key, val in self.correlations.items()])
             self.bathDensity = np.array([ np.diagonal(val[1:,1:]) for key, val in self.correlations.items()])
         else: # if the densities already exist, append new densities rather than overwriting them
             correlations = list(self.correlations.items())
@@ -431,7 +510,7 @@ class simulation():
         # return fig
         return fig
     
-    def plotSystemOccupation(self, figParams=figStandardParams, display=True):
+    def plotSystemOccupation(self, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=True):
         inch = 2.54
         fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
         ax = fig.add_subplot()
@@ -444,10 +523,12 @@ class simulation():
         
         ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
         # get and plot occupation data over time
-        times  = self.correlations.keys()
+        times  = list(self.correlations.keys())
         
-        ax.plot(times, self.density.real, color="k", linewidth=figParams["markerWidth"])
+        ax.plot(times, self.density.real, color=plotColor, linewidth=figParams["markerWidth"])
         
+        # plot analytical occupancy
+        ax.plot(times, np.full(len(times), self.analyticalSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"])
         
         # display plot if desired
         if(display):
@@ -497,16 +578,20 @@ prefactor = 0.005
 n=300
 bandwidth = 0.2
 energyScale = 0
-beta = 1
-mu = 0
+beta = 2
+mu = 1
 
-dt = 100
-tMax = 200
+dt = 1
+tMax = 100
 
 sim = simulation("testSim", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
 sim.setupSim()
+
+#thermalization = analyticalThermalization(spectralFunction, prefactor, bandwidth, energyScale, beta, mu)
+#thermalization.plotA()
+#print("occupancy: ", thermalization.computeOccupancy())
 #sim.plotSpectralFunction()
-#sim.simulationCompute(dt, tMax)
+sim.simulationCompute(dt, tMax)
 #sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
 #sim.save("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
 #sim.load("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode", "testSim")
@@ -524,4 +609,4 @@ print(sim.correlations[list(sim.correlations.keys())[-1]])"""
 #sim.plotSystemOccupation()
 #sim.plotBathOccupation()
 
-#sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
+sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")

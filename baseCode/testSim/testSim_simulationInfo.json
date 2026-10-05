@@ -3,11 +3,12 @@
    "saveCorrelations": true,
    "spectralFunction": "lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)",
    "spectralPrefactor": 0.005,
-   "bandwidth": 1,
+   "bandwidth": 0.2,
    "nBathSites": 300,
    "epsilon": 0,
-   "beta": 1,
+   "beta": 2,
    "mu": 1,
-   "timeSteps": 500,
-   "tMax": 49.900000000000006
+   "timeSteps": 100,
+   "tMax": 99.0,
+   "analyticalSystemOccupation": 0.8805222226298458
 }
