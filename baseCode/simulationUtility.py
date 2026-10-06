@@ -404,6 +404,11 @@ class simulation():
         
         self.computeDensity()
     
+    # TODO: Implement
+    # Simulate the system until the system occupation is within eta of the analytical thermalization - can probably be implemented w/binary search over time domain
+    def simulateToThermalization(self, eta):
+        pass
+    
     # Compute the system density operators for the entire simulation
     def computeDensity(self):
         # code copied from provided code
@@ -592,6 +597,8 @@ class dualSimulation():
         
         self.occupiedSimulation.save(workingDirectory)
         self.unoccupiedSimulation.save(workingDirectory)
+        
+        # TODO: Implement saving of dynamic map structure
     
     def load(self, directory, folderName):
         workingDirectory = directory + "/" +folderName
@@ -601,6 +608,8 @@ class dualSimulation():
             self.occupiedSimulation.setupSim()
             self.unoccupiedSimulation.load(workingDirectory, self.name+"_unoccupied")
             self.unoccupiedSimulation.setupSim()
+            
+            # TODO: Implement loading of dynamic map structure
     
     def saveAll(self):
         pass
@@ -610,6 +619,13 @@ class dualSimulation():
     # ----------------------------------------------
     def computeDynamicMap(self):
         pass
+        # check if dynamic map exists
+        
+        # 
+    
+    # Accessor method - returns dynamic map for time t
+    def getDynamicMap(self, t):
+        pass
     
     # ----------------------------------------------
     # Simulation methods
@@ -617,6 +633,10 @@ class dualSimulation():
     def simulateCompute(self, dt, tMax):
         self.occupiedSimulation.simulationCompute(dt, tMax)
         self.unoccupiedSimulation.simulationCompute(dt, tMax)
+        
+    # Simulate the system until the system occupation is within eta of the analytical thermalization - can probably be implemented w/binary search over time domain
+    def simulateToThermalization(self, eta):
+        pass
     # ----------------------------------------------
     # Plotting methods
     # ----------------------------------------------
