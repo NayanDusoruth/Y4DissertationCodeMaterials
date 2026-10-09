@@ -52,7 +52,8 @@ figStandardParams = {"markerWidth":0.6,
                      "heightOverWidth":3/4, 
                      "dpi":600,
                      "nFuncPoints":1000,
-                     "labelpad":-0.4}
+                     "labelpad":-0.4,
+                     "inch":2.54}
 
 
 def createFolder(directory, folderName):
@@ -115,6 +116,16 @@ def lambdaAsString(lambdaFunc):
     funcString = funcString.strip("['\\n']").split(" = ")[1]
     print(funcString)
     return funcString
+
+
+def isUnitary(matrix, printProduct=False):
+    transpose = matrix.transpose().conjugate()
+    product = np.matmul(matrix, transpose)
+    matrixSize = len(matrix)
+    if(printProduct):
+        print(product)
+    error = np.linalg.norm(np.eye(matrixSize) - product)
+    return (error < np.finfo(matrix.dtype).eps * 10.0 *matrixSize)
 
 
 # =============================================================================
@@ -446,11 +457,11 @@ class simulation():
     
     
     # Plot the spectral function  - </method verified/>
-    def plotSpectralFunction(self, marker = 'x', scatterColour="r",functionColour="k", figParams=figStandardParams, display=True):
+    def plotSpectralFunction(self, fig=None, ax=None, marker = 'x', scatterColour="r",functionColour="k", figParams=figStandardParams, display=True):
         # fig setup
-        inch = 2.54
-        fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
-        ax = fig.add_subplot()
+        if(fig is None or ax is None): # allow passing of fig/ax object in for subfigs and such
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
         pltTimesNewRoman()
         
         ax.set_xlabel("$\omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
@@ -478,11 +489,11 @@ class simulation():
         return fig
     
     # plot correlation matrix in both bases  - </method verified/>
-    def plotCorrelationMatrix(self, t, figParams=figStandardParams, display=True):
+    def plotCorrelationMatrix(self, t,fig=None, ax=None, figParams=figStandardParams, display=True):
         # fig setup
-        inch = 2.54
-        fig, ax = plt.subplots(1,2,figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
-        pltTimesNewRoman()
+        if(fig is None or ax is None):
+            fig, ax = plt.subplots(1,2,figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            pltTimesNewRoman()
         
         ax[0].tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="out", length=2, rotation=45)
         ax[1].tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="out", length=2, rotation=45)
@@ -514,10 +525,10 @@ class simulation():
         # return fig
         return fig
     
-    def plotSystemOccupation(self, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=True):
-        inch = 2.54
-        fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
-        ax = fig.add_subplot()
+    def plotSystemOccupation(self, fig=None, ax=None, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=True):
+        if(fig is None or ax is None):
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
         pltTimesNewRoman()
         
         ax.set_xlabel("Time",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
@@ -541,10 +552,10 @@ class simulation():
         # return fig
         return fig
     
-    def plotBathOccupation(self, bandwidthMultiplier=1.2,figParams=figStandardParams, display=True):
-        inch = 2.54
-        fig = plt.figure(figsize=(figParams["width"]/inch, figParams["heightOverWidth"] * figParams["width"]/inch), dpi=figParams["dpi"])
-        ax = fig.add_subplot()
+    def plotBathOccupation(self, fig=None, ax=None, bandwidthMultiplier=1.2,figParams=figStandardParams, display=True):
+        if(fig is None or ax is None):
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
         pltTimesNewRoman()
         
         ax.set_xlabel("$\Omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
@@ -588,6 +599,7 @@ class dualSimulation():
         self.unoccupiedSimulation = simulation(name+"_unoccupied", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=0)
         self.occupiedSimulation.setupSim()
         self.unoccupiedSimulation.setupSim()
+        self.dynamicalMaps = {}
     # ----------------------------------------------
     # Saving and loading methods
     # ----------------------------------------------
@@ -617,15 +629,39 @@ class dualSimulation():
     # ----------------------------------------------
     # Analytical methods
     # ----------------------------------------------
-    def computeDynamicMap(self):
-        pass
-        # check if dynamic map exists
-        
-        # 
     
-    # Accessor method - returns dynamic map for time t
-    def getDynamicMap(self, t):
-        pass
+    # Compuational method - computes dynamic map f
+    def computeDynamicMap(self):
+        times = list(self.occupiedSimulation.correlations.keys())
+        occupiedCorrelations = self.occupiedSimulation.density
+        unOccupiedCorrelations = self.unoccupiedSimulation.density
+        unitary = []
+        for i in range(0, len(times)):
+            time = times[i]
+            C_occ = occupiedCorrelations[i]
+            C_unocc = unOccupiedCorrelations[i]
+            
+            dynamicalMap = np.array([[1-C_occ,1-C_occ-C_unocc],[C_occ,C_occ+C_unocc]],dtype=np.complex128)
+            unitary = unitary+ [isUnitary(dynamicalMap, printProduct=False)]
+            self.dynamicalMaps[time] = dynamicalMap
+        print(unitary)
+        #print(self.dynamicalMaps[times[0]])
+        #print(self.dynamicalMaps[times[1]])
+        #print(self.dynamicalMaps[times[2]])
+    
+    # computes the state evolution using the dynamical map given some initial occupation
+    def computeStateEvolution(self, initialOccupation):
+        times = list(self.dynamicalMaps.keys())
+        states = {times[0]:np.array([1-initialOccupation, initialOccupation], dtype=np.complex128)}
+        
+        #lastTime = times[0]
+        for i in range(1, len(times)):
+            time = times[i]
+            states[time] = np.matmul(self.dynamicalMaps[time], states[times[0]])
+            
+            #lastTime = times[i]
+            
+        return states
     
     # ----------------------------------------------
     # Simulation methods
@@ -641,6 +677,35 @@ class dualSimulation():
     # Plotting methods
     # ----------------------------------------------
     
+    def plotOccupationFromMap(self, initialOccupation, fig=None, ax=None, figParams=figStandardParams, plotColor="k", display=True):
+        
+        states = self.computeStateEvolution(initialOccupation)
+        #print(states)
+        systemOccupation = np.array([val[1] for key, val in states.items()])
+        
+        if(fig is None or ax is None):
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
+        pltTimesNewRoman()
+        
+        ax.set_xlabel("Time",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
+        ax.set_ylabel("System occupation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
+        
+        ax.tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="in", length=2)
+        
+        ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
+        # get and plot occupation data over time
+        times = list(self.dynamicalMaps.keys())
+        
+        ax.plot(times, systemOccupation.real, color=plotColor, linewidth=figParams["markerWidth"])
+        
+        
+        # display plot if desired
+        if(display):
+            plt.show()
+            
+        # return fig
+        return fig
 # =============================================================================
 # Testing
 # =============================================================================
@@ -652,7 +717,7 @@ energyScale = 0
 beta = 2
 mu = 1
 
-dt = 1
+dt = 0.1
 tMax = 100
 
 #sim = simulation("testSim", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
@@ -681,3 +746,10 @@ print(sim.correlations[list(sim.correlations.keys())[-1]])"""
 #sim.plotBathOccupation()
 
 #sim.saveAll("/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4DissertationCodeMaterials/baseCode")
+
+
+dualSimulation = dualSimulation("testDual",  spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
+dualSimulation.simulateCompute(dt, tMax)
+dualSimulation.computeDynamicMap()
+dualSimulation.plotOccupationFromMap(1, display=True)
+dualSimulation.unoccupiedSimulation.plotSystemOccupation(display=True)
