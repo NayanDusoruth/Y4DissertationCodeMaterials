@@ -44,6 +44,7 @@ figStandardParams = {"markerWidth":0.6,
                      "markerArea":12, 
                      "gridColor":'k', 
                      "fontsize":8, 
+                     "axisTickFont":7.5,
                      "gridStyle":':',
                      "gridWidth":0.6, 
                      "errCapsize":2, 
@@ -53,7 +54,10 @@ figStandardParams = {"markerWidth":0.6,
                      "dpi":600,
                      "nFuncPoints":1000,
                      "labelpad":-0.4,
-                     "inch":2.54}
+                     "inch":2.54,
+                     "legendLoc":"upper right",
+                     "legendLocMid":"center right",
+                     "legendFont":8}
 
 
 def createFolder(directory, folderName):
@@ -457,7 +461,7 @@ class simulation():
     
     
     # Plot the spectral function  - </method verified/>
-    def plotSpectralFunction(self, fig=None, ax=None, marker = 'x', scatterColour="r",functionColour="k", figParams=figStandardParams, display=True):
+    def plotSpectralFunction(self, fig=None, ax=None, legend=False, spectralLabel="Spectral function", bathSiteLabel="Bath sites", marker = 'x', scatterColour="r",functionColour="k", figParams=figStandardParams, display=True):
         # fig setup
         if(fig is None or ax is None): # allow passing of fig/ax object in for subfigs and such
             fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
@@ -467,7 +471,7 @@ class simulation():
         ax.set_xlabel("$\omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("$J(\omega)$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         
-        ax.tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="in", length=2)
+        ax.tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="in", length=2)
         
         ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
         
@@ -476,10 +480,13 @@ class simulation():
         yData = self.spectralFunction(xData, self.spectralPrefactor, self.bandwidth)
         
         # plot function data
-        ax.plot(xData, yData, color=functionColour, linewidth=figParams["markerWidth"])
+        ax.plot(xData, yData, color=functionColour, linewidth=figParams["markerWidth"], label=spectralLabel)
         
         # plot sampled data
-        ax.scatter(self.omegas, self.spectralValues, marker = marker, color=scatterColour, s=figParams["markerArea"], linewidth=figParams["markerWidth"])
+        ax.scatter(self.omegas, self.spectralValues, marker = marker, color=scatterColour, s=figParams["markerArea"], linewidth=figParams["markerWidth"],label=bathSiteLabel)
+        
+        if(legend):
+            ax.legend(loc=figParams["legendLoc"],fontsize=figParams["legendFont"])
         
         # display plot if desired
         if(display):
@@ -495,8 +502,8 @@ class simulation():
             fig, ax = plt.subplots(1,2,figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
             pltTimesNewRoman()
         
-        ax[0].tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="out", length=2, rotation=45)
-        ax[1].tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="out", length=2, rotation=45)
+        ax[0].tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="out", length=2, rotation=45)
+        ax[1].tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="out", length=2, rotation=45)
         
         # get correlation matrices
         correlationSiteBasis = self.correlations.get(t)
@@ -525,7 +532,7 @@ class simulation():
         # return fig
         return fig
     
-    def plotSystemOccupation(self, fig=None, ax=None, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=True):
+    def plotSystemOccupation(self, fig=None, ax=None, legend=False, plotThermalization=False, densityLabel=r"$n_{occ}(t)$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=True):
         if(fig is None or ax is None):
             fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
             ax = fig.add_subplot()
@@ -534,17 +541,19 @@ class simulation():
         ax.set_xlabel("Time",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("System occupation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         
-        ax.tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="in", length=2)
+        ax.tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="in", length=2)
         
         ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
         # get and plot occupation data over time
         times  = list(self.correlations.keys())
         
-        ax.plot(times, self.density.real, color=plotColor, linewidth=figParams["markerWidth"])
+        ax.plot(times, self.density.real, color=plotColor, linewidth=figParams["markerWidth"], label=densityLabel)
         
         # plot analytical occupancy
-        ax.plot(times, np.full(len(times), self.analyticalSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"])
-        
+        if(plotThermalization):
+            ax.plot(times, np.full(len(times), self.analyticalSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"], label=thermalizationLabel)
+        if(legend):
+            ax.legend(loc=figParams["legendLocMid"],fontsize=figParams["legendFont"])
         # display plot if desired
         if(display):
             plt.show()
@@ -561,7 +570,7 @@ class simulation():
         ax.set_xlabel("$\Omega$",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("Occupation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         
-        ax.tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="in", length=2)
+        ax.tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="in", length=2)
         
         ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
                  
@@ -599,6 +608,9 @@ class dualSimulation():
         self.unoccupiedSimulation = simulation(name+"_unoccupied", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=0)
         self.occupiedSimulation.setupSim()
         self.unoccupiedSimulation.setupSim()
+        
+        self.analyticalSystemOccupancy = self.occupiedSimulation.analyticalSystemOccupancy
+        
         self.dynamicalMaps = {}
     # ----------------------------------------------
     # Saving and loading methods
@@ -635,16 +647,17 @@ class dualSimulation():
         times = list(self.occupiedSimulation.correlations.keys())
         occupiedCorrelations = self.occupiedSimulation.density
         unOccupiedCorrelations = self.unoccupiedSimulation.density
-        unitary = []
+        #unitary = []
         for i in range(0, len(times)):
             time = times[i]
             C_occ = occupiedCorrelations[i]
             C_unocc = unOccupiedCorrelations[i]
             
             dynamicalMap = np.array([[1-C_occ,1-C_occ-C_unocc],[C_occ,C_occ+C_unocc]],dtype=np.complex128)
-            unitary = unitary+ [isUnitary(dynamicalMap, printProduct=False)]
-            self.dynamicalMaps[time] = dynamicalMap
-        print(unitary)
+            dynamicalMapAlt = np.array([[(1-C_unocc),(1-C_occ)],[C_unocc,C_occ]],dtype=np.complex128)
+            #unitary = unitary+ [isUnitary(dynamicalMapAlt, printProduct=False)]
+            self.dynamicalMaps[time] = dynamicalMapAlt
+        #print(unitary)
         #print(self.dynamicalMaps[times[0]])
         #print(self.dynamicalMaps[times[1]])
         #print(self.dynamicalMaps[times[2]])
@@ -677,30 +690,52 @@ class dualSimulation():
     # Plotting methods
     # ----------------------------------------------
     
-    def plotOccupationFromMap(self, initialOccupation, fig=None, ax=None, figParams=figStandardParams, plotColor="k", display=True):
-        
+    def plotOccupationFromMap(self, initialOccupation, legend=False, label=r"$n_{occ}(t)$", plotThermalization=False, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=None, ax=None, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor='r', display=True):
+        # get system occupation data
         states = self.computeStateEvolution(initialOccupation)
-        #print(states)
         systemOccupation = np.array([val[1] for key, val in states.items()])
         
+        # generate fig/ax objects if not provided
         if(fig is None or ax is None):
             fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
             ax = fig.add_subplot()
         pltTimesNewRoman()
         
+        # set axis labels and related parameters
         ax.set_xlabel("Time",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         ax.set_ylabel("System occupation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
         
-        ax.tick_params(axis='both', which='major', labelsize=figParams["fontsize"], direction="in", length=2)
+        ax.tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="in", length=2)
         
         ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
+        
         # get and plot occupation data over time
         times = list(self.dynamicalMaps.keys())
         
-        ax.plot(times, systemOccupation.real, color=plotColor, linewidth=figParams["markerWidth"])
+        ax.plot(times, systemOccupation.real, color=plotColor, linewidth=figParams["markerWidth"], label=label)
         
+        if(plotThermalization):
+            ax.plot(times, np.full(len(times), self.analyticalSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"], label=thermalizationLabel)
         
+        if(legend):
+            ax.legend(loc=figParams["legendLocMid"],fontsize=figParams["legendFont"])
         # display plot if desired
+        if(display):
+            plt.show()
+            
+        # return fig
+        return fig
+    
+    def plotBothOccupationsFromMap(self, fig=None, ax=None, figParams=figStandardParams, display=True):
+        if(fig is None or ax is None):
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
+        pltTimesNewRoman()
+        
+        fig = self.plotOccupationFromMap(1, legend=False,plotThermalization=False, label=r"$n_{occ}(t=0)=1$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor='r', display=False)
+        fig = self.plotOccupationFromMap(0, legend=False,plotThermalization=True, label=r"$n_{occ}(t=0)=0$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=figStandardParams, plotColor="b", analyticalThermalizationColor='r', display=False)
+        ax.legend(loc=figParams["legendLocMid"], fontsize=figParams["legendFont"])
+        
         if(display):
             plt.show()
             
@@ -751,5 +786,6 @@ print(sim.correlations[list(sim.correlations.keys())[-1]])"""
 dualSimulation = dualSimulation("testDual",  spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
 dualSimulation.simulateCompute(dt, tMax)
 dualSimulation.computeDynamicMap()
-dualSimulation.plotOccupationFromMap(1, display=True)
+dualSimulation.plotOccupationFromMap(0, display=True)
 dualSimulation.unoccupiedSimulation.plotSystemOccupation(display=True)
+dualSimulation.plotBothOccupationsFromMap(display=True)
