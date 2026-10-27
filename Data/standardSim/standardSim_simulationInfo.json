@@ -1,0 +1,14 @@
+{
+   "name": "standardSim",
+   "saveCorrelations": true,
+   "spectralFunction": "lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)",
+   "spectralPrefactor": 0.005,
+   "bandwidth": 1,
+   "nBathSites": 200,
+   "epsilon": 0,
+   "beta": 1,
+   "mu": 1,
+   "timeSteps": 500,
+   "tMax": 499.0,
+   "analyticalSystemOccupation": 0.7307110690010241
+}

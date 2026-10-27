@@ -1,0 +1,14 @@
+{
+   "name": "fromThermalizedoccupancy",
+   "saveCorrelations": true,
+   "spectralFunction": "lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)",
+   "spectralPrefactor": 0.05,
+   "bandwidth": 1,
+   "nBathSites": 100,
+   "epsilon": 0,
+   "beta": 10,
+   "mu": 0.1,
+   "timeSteps": 100,
+   "tMax": 99.0,
+   "analyticalSystemOccupation": 0.635144708125924
+}
