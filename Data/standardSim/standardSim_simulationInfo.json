@@ -8,7 +8,7 @@
    "epsilon": 0,
    "beta": 1,
    "mu": 1,
-   "timeSteps": 500,
-   "tMax": 499.0,
+   "timeSteps": 50,
+   "tMax": 49.0,
    "analyticalSystemOccupation": 0.7307110690010241
 }

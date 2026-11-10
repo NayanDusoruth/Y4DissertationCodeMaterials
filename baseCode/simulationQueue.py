@@ -9,144 +9,14 @@ Created on Sun Sep 27 13:22:34 2026
 # library imports
 # =============================================================================
 from simulationUtility import *
+from simulationHandlers import *
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-# =============================================================================
-# Utilities
-# =============================================================================
-# runs full simulation and saves it to directory
-def fullSim(name, directory, args, saveSim=True, produceAnimatedPlot=True):
-    # extract args from args dict - packaged like this to make handling "parameter sets" easier
-    dt = args["dt"]
-    tMax = args["tMax"]
-    spectralFunction  = args["spectralFunction"]
-    prefactor  = args["prefactor"]
-    bandwidth  = args["bandwidth"]
-    n  = args["n"]
-    energyScale = args["energyScale"]
-    beta = args["beta"]
-    mu = args["mu"]
-    initialSystemOccupation = args["initialSystemOccupation"]
-    animateFps=args["animateFps"]
-    animateDuration=args["animateDuration"]
-    animateFormat=args["animateFormat"]
-    
-    # run simulation
-    sim = simulation(name, spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=initialSystemOccupation, animateFps=animateFps, animateDuration=animateDuration, animateFormat=animateFormat)
-    sim.setupSim()
-    sim.simulationCompute(dt, tMax)
-    
-    # save
-    if(saveSim):
-        sim.saveAll(directory, produceAnimatedPlot=produceAnimatedPlot)
-    
-    return sim
+import NayanGeneralUtils.plotting as plotting
+import pandas as pd
 
-def fullDynamicMap(name, directory, args, saveSim):
-    # extract args from args dict - packaged like this to make handling "parameter sets" easier
-    dt = args["dt"]
-    tMax = args["tMax"]
-    spectralFunction  = args["spectralFunction"]
-    prefactor  = args["prefactor"]
-    bandwidth  = args["bandwidth"]
-    n  = args["n"]
-    energyScale = args["energyScale"]
-    beta = args["beta"]
-    mu = args["mu"]
-    
-    dualSim = dualSimulation(name, spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
-    dualSim.simulateCompute(dt, tMax)
-    dualSim.computeDynamicMap()
-    
-    if(saveSim):
-        dualSim.saveAll(directory)
-    
-    return dualSim
-def thermalizationWrapped(args):
-    return analyticalThermalization(args["spectralFunction"], args["prefactor"], args["bandwidth"], args["energyScale"], args["beta"], args["mu"])
-   
-def computeThermalizedOccupancy(args):
-    thermalization = thermalizationWrapped(args)
-    return thermalization.computeOccupancy()
-
-def generateParamsVariation(args, key, variations):
-    argsList = []
-    for variation in variations:
-        newArgs = args.copy()
-        newArgs[key] = variation
-        argsList = argsList + [newArgs]
-    return argsList
-
-def simulateVariations(baseName, argsList, directory, saveSims = True, produceAnimatedPlot=False):
-    if(saveSims):
-        createFolder(directory, baseName)
-        
-    sims = []
-    for i in range(0, len(argsList), 1):
-        sim = fullSim(baseName+str(i), directory+"/"+baseName, argsList[i], saveSim=saveSims,produceAnimatedPlot=produceAnimatedPlot)
-        sims = sims + [sim]
-    return sims
-       
-
-def animateSystemVariationsHelper(frame, simulations=[], labels=[], fig=None, ax=None, figParams=figStandardParams, axLims=[0.55, 0.85]):
-    ax.clear()
-    fig = simulations[frame].plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="-",plotThermalization=False, axLims=[0,1], densityLabel=labels[frame], thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=False)
-    thermalizationPoint = simulations[frame].density.real[-1]
-    ax.plot(simulations[frame].times, np.full(len(simulations[frame].times), thermalizationPoint), color="r", linewidth=figParams["markerWidth"], label=r"$\lim_{t\to\infty}(n_{occ}(t))$")
-    ax.set_ylim(axLims)
-    ax.legend(loc=figParams["legendLoc"],fontsize=figParams["legendFont"])
-    return fig.get_axes()[0]
-
-def animateSystemVariations(simulations, variedArg, variations, directory, name, figParams=figStandardParams,fps=25, vidFormat="gif"):
-    # set up fig/ax
-    fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
-    ax = fig.add_subplot()
-    pltTimesNewRoman()
-    
-    # frame stuff
-    frames = len(simulations)
-    
-    # create labels
-    labels = [str(variedArg) + ": "+'%0.3f' %variation for variation in variations]
-    animatedPlot = animation.FuncAnimation(fig, functools.partial(animateSystemVariationsHelper,simulations=simulations, labels=labels, fig=fig, ax=ax, figParams=figParams), frames=frames, interval=(1/fps)/1000)
-    
-    gifWriter = animation.PillowWriter(fps=fps)
-    FFwriter =  animation.FFMpegWriter(fps=fps)#animation.writers['ffmpeg']
-    # create path and gif name
-    path = directory + "/" + name
-    
-    # save
-    if(vidFormat == "gif"):
-        animatedPlot.save(path+".gif", gifWriter)
-    elif(vidFormat == "mp4"):
-        animatedPlot.save(path+".mp4", FFwriter)
-
-# produces plot of three initial occupancies
-def plotSystemMultipleOccupancy(args, occupancies, plotName, directory, occupancyNames=None, figParams=figStandardParams):
-    argsList = generateParamsVariation(args, "initialSystemOccupation", occupancies)
-    sims = simulateVariations("occupancy", argsList, directory, saveSims = False, produceAnimatedPlot=False)
-    
-    fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
-    ax = fig.add_subplot()
-    pltTimesNewRoman()
-    
-    thermalizationPlotted = False
-    
-    if(occupancyNames is None):
-        occupancyNames = [str(x) for x in occupancies]
-    
-    colors = [plt.cm.coolwarm(x/len(sims)) for x in range(1, len(sims), 1)]
-    
-    for sim, occupancy, color in zip(sims, occupancyNames, colors):
-        if(not thermalizationPlotted):
-            fig = sim.plotSystemOccupation(fig=fig, ax=ax, legend=False, plotThermalization=True, axLims=[0,1], densityLabel=r"$n_{occ}(0)="+occupancy+"$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=figStandardParams, plotColor=color, analyticalThermalizationColor="r", display=False)
-            thermalizationPlotted = True
-        else:
-            fig = sim.plotSystemOccupation(fig=fig, ax=ax, legend=False, plotThermalization=False, axLims=[0,1], densityLabel=r"$n_{occ}(0)="+occupancy+"$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=figStandardParams, plotColor=color, analyticalThermalizationColor="r", display=False)
-    ax.legend(loc=figParams["legendLocMid"],fontsize=figParams["legendFont"])
-    plt.show()
-    saveFigure(directory, plotName, fig)
     
 # =============================================================================
 # standard parameters
@@ -158,7 +28,7 @@ dataDirectory = "/Users/nayandusoruth/Desktop/Y4physics/Dissertation/Y4Dissertat
 standardSpectralFunction = lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)
 
 standardParams = {"dt": 1,
-"tMax" : 500,
+"tMax" : 50,
 "spectralFunction" : standardSpectralFunction,
 "prefactor" : 0.005,
 "n":200,
@@ -169,7 +39,9 @@ standardParams = {"dt": 1,
 "initialSystemOccupation":0,
 "animateFps":25, 
 "animateDuration":10, 
-"animateFormat":"mp4"}
+"animateFormat":"mp4",
+"initialOccupations":np.linspace(0,1,10)
+}
 
 variationCount = 5
 
@@ -235,9 +107,9 @@ plotSystemMultipleOccupancy(standardParams, [0, 1], "fromThree", dataDirectory, 
 # =============================================================================
 # standard dual sim plot
 # =============================================================================
-
-fullDynamicMap("standardDualSim", dataDirectory, standardParams, saveSim=True)
-
+"""
+fullDynamicMap("standardDualSim", dataDirectory, standardParams, saveSim=False)
+"""
 
 # =============================================================================
 # TIny model for presentation illustrative purposes
@@ -262,4 +134,40 @@ prefactorArgs = generateParamsVariation(thermalArgs, "prefactor", np.linspace(0.
 sims = simulateVariations("prefactor", prefactorArgs, dataDirectory, saveSims=False, produceAnimatedPlot=False)
 animateSystemVariations(sims, "Coupling strength", np.linspace(0.005, 0.01, animateVariationCount), dataDirectory, "testMemoryAnimate", figParams=figStandardParams,fps=25, vidFormat="mp4")
 
+"""
+
+
+# =============================================================================
+# testing non markovian "hump"
+# =============================================================================
+"""
+humpVariations = copyDict(standardParams, {"tMax":50, "dt":0.1, "prefactor":0.2,"initialSystemOccupation":0.8, "bandwidth":2, "beta":7, "mu":0.1, "n":300, "initialOccupations":np.linspace(0.4, 0.9, 20)})
+dualSimHumps = fullDynamicMap("humpDualSimulation", dataDirectory, humpVariations, saveSim=True)
+print("dial sim numeric thermalization: ", dualSimHumps.numericSystemOccupancy)
+"""
+# =============================================================================
+# varying max deviation over mu
+# =============================================================================
+"""
+humpVariations = copyDict(standardParams, {"tMax":50, "dt":0.1, "prefactor":0.2,"initialSystemOccupation":0.8, "bandwidth":2, "beta":10, "mu":0.1, "n":300, "initialOccupations":np.linspace(0.4, 0.9, 20)})
+argsVaried = np.linspace(-0.5, 0.5, 20)
+ArgsVar = generateParamsVariation(humpVariations, "mu", argsVaried)
+dualSims = simulateDynamicsVariations("maxDeviationInitialExamination", ArgsVar, dataDirectory, saveSims=False)
+
+maxDevs = [dualSim.maximumDeviationFromThermalization()[0] for dualSim in dualSims]
+plot = plotting.plotter(xLabel=r"$\mu$", yLabel=r"$\delta p$")
+plot.scatter(argsVaried, maxDevs)
+"""
+
+# =============================================================================
+# saving/loading utility tests
+# =============================================================================
+"""
+fullSim("standardSim", dataDirectory, standardParams, produceAnimatedPlot=False, saveSim=True)
+sim = loadFullSim("standardSim", dataDirectory)
+print("saved/loaded sim data: ", sim.spectralPrefactor, " ", len(sim.correlations))
+
+fullDynamicMap("standardDualSim", dataDirectory, copyDict(standardParams,{"initialOccupations":[0.1, 0.2]}), saveSim=True)
+dualSim = loadFullDynamicMap("standardDualSim", dataDirectory)
+print("saved/loaded dualSim: ", dualSim.initialOccupations, " ", len(dualSim.dynamicalMaps))
 """

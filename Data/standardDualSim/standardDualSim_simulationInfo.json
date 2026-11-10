@@ -4,10 +4,14 @@
    "spectralFunction": "lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)",
    "spectralPrefactor": 0.005,
    "bandwidth": 1,
-   "nBathSites": 300,
+   "nBathSites": 200,
    "epsilon": 0,
    "beta": 1,
    "mu": 1,
-   "timeSteps": 500,
-   "tMax": 499.0
+   "timeSteps": 50,
+   "tMax": 49.0,
+   "initialOccupations": [
+      0.1,
+      0.2
+   ]
 }

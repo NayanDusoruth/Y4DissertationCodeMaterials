@@ -21,6 +21,8 @@ import torch
 import inspect
 import pickle
 import functools
+
+import NayanGeneralUtils.plotting as standardPlotting
 # check if MPS is available
 if torch.backends.mps.is_available():
     device = torch.device("mps")
@@ -135,6 +137,8 @@ def lambdaAsString(lambdaFunc):
     #print("func: ",lambdaFunc)
     #print(type(lambdaFunc))
     #print(lambdaFunc(1,1,1))
+    if(lambdaFunc is None): # null checker
+        return None
     
     funcString = str(inspect.getsourcelines(lambdaFunc)[0])
     funcString = funcString.strip("['\\n']").split(" = ")[1]
@@ -169,8 +173,8 @@ class analyticalThermalization():
 
     def computeLambda(self, omegaVal):
         integrand = lambda omega: self.spectralFunction(omega, self.spectralPrefactor, self.bandwidth) / (omegaVal - omega)
-        integralBelow = scipy.integrate.quad(integrand, -bandwidth, omegaVal-self.eta, points=[-bandwidth, omegaVal],limit=1000, complex_func=False)
-        integralAbove = scipy.integrate.quad(integrand, omegaVal+self.eta, bandwidth, points=[bandwidth, omegaVal],limit=1000, complex_func=False)
+        integralBelow = scipy.integrate.quad(integrand, -self.bandwidth, omegaVal-self.eta, points=[-self.bandwidth, omegaVal],limit=1000, complex_func=False)
+        integralAbove = scipy.integrate.quad(integrand, omegaVal+self.eta, self.bandwidth, points=[self.bandwidth, omegaVal],limit=1000, complex_func=False)
         integral = integralBelow[0] + integralAbove[0]
         return integral
     
@@ -253,8 +257,12 @@ class simulation():
         self.animateFormat = animateFormat
         
         # setup analytical thermalization object
-        self.analyticalThermalization = analyticalThermalization(spectralFunction,  spectralPrefactor, bandwidth, epsilon, beta, mu)
-        self.analyticalSystemOccupancy = self.analyticalThermalization.computeOccupancy()
+        if(not (spectralFunction is None or spectralPrefactor is None or bandwidth is None or epsilon is None or beta is None or mu is None)):
+            self.analyticalThermalization = analyticalThermalization(spectralFunction,  spectralPrefactor, bandwidth, epsilon, beta, mu)
+            self.analyticalSystemOccupancy = self.analyticalThermalization.computeOccupancy()
+        else:
+            self.analyticalThermalization = None
+            self.analyticalSystemOccupancy = None
     
     # ----------------------------------------------
     # Saving and loading methods
@@ -319,7 +327,7 @@ class simulation():
         self.evaluateSpectralFunction()
         self.initaliseHamiltonian()
         
-        self.analyticalThermalization = analyticalThermalization(self.pectralFunction, self.spectralPrefactor, self.bandwidth, self.epsilon, self.beta, self.mu)
+        self.analyticalThermalization = analyticalThermalization(self.spectralFunction, self.spectralPrefactor, self.bandwidth, self.epsilon, self.beta, self.mu)
         self.analyticalSystemOccupancy = self.analyticalThermalization.computeOccupancy()
         
         if(loadData["saveCorrelations"]):
@@ -623,7 +631,7 @@ class simulation():
         # return fig
         return fig
     
-    def plotSystemOccupation(self, fig=None, ax=None, legend=False, linestyle="-",plotThermalization=True, axLims=[0,1], densityLabel=r"$n_{occ}(t)$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=figStandardParams, plotColor="k", analyticalThermalizationColor="r", display=True):
+    def plotSystemOccupation(self, fig=None, ax=None, legend=False, linestyle="-",plotThermalization=True, axLims=[0,1], densityLabel=r"$n_{occ}(t)$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=figStandardParams, analyticalThermalizationColor="r", display=True):
         if(fig is None or ax is None):
             fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
             ax = fig.add_subplot()
@@ -640,7 +648,7 @@ class simulation():
         # get and plot occupation data over time
         times  = list(self.correlations.keys())
         
-        ax.plot(times, self.density.real, color=plotColor, linewidth=figParams["markerWidth"], label=densityLabel, linestyle=linestyle)
+        ax.plot(times, self.density.real, color=figParams["plotColor"], linewidth=figParams["markerWidth"], label=densityLabel, linestyle=linestyle)
         
         if(axLims is not None):
             ax.set_ylim(axLims)
@@ -734,9 +742,11 @@ class simulation():
         systemLine = axSys.plot(self.times[0:index], self.density[0:index].real, color=plotColor, linewidth=figParams["markerWidth"], label=densityLabel)
         
         fig.subplots_adjust(wspace=0)
-        fig.tight_layout()
+        #fig.tight_layout()
+        
         if(plotThermalization):
             thermalLine = axSys.plot(self.times, np.full(len(self.times), self.analyticalSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"], label=thermalizationLabel)
+            
             return bathLine, fermiLine, systemLine, thermalLine
         
         return bathLine, fermiLine, systemLine
@@ -771,15 +781,19 @@ class dualSimulation():
     # ----------------------------------------------
     # Constructor methods
     # ----------------------------------------------
-    def __init__(self, name, spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, usePytorch=True, saveCorrelations=False):
+    def __init__(self, name, spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, initialOccupations=np.linspace(0,1, 10), usePytorch=True, saveCorrelations=False):
         self.name = name
-        self.occupiedSimulation = simulation(name+"_occupied", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=1)
-        self.unoccupiedSimulation = simulation(name+"_unoccupied", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu, initialSystemOccupation=0)
-        self.occupiedSimulation.setupSim()
-        self.unoccupiedSimulation.setupSim()
+        self.occupiedSimulation = simulation(name+"_occupied", spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, initialSystemOccupation=1)
+        self.unoccupiedSimulation = simulation(name+"_unoccupied", spectralFunction, spectralPrefactor, bandwidth, nBathSites, epsilon, beta, mu, initialSystemOccupation=0)
+        
+        if(not(spectralFunction is None or spectralPrefactor is None or bandwidth is None or nBathSites is None or epsilon is None or beta is None or mu is None)):
+            self.occupiedSimulation.setupSim()
+            self.unoccupiedSimulation.setupSim()
         
         self.analyticalSystemOccupancy = self.occupiedSimulation.analyticalSystemOccupancy
+        self.numericSystemOccupancy = None
         
+        self.initialOccupations = initialOccupations
         self.dynamicalMaps = {}
     # ----------------------------------------------
     # Saving and loading methods
@@ -791,8 +805,8 @@ class dualSimulation():
         self.occupiedSimulation.save(workingDirectory)
         self.unoccupiedSimulation.save(workingDirectory)
         
-        # TODO: Implement saving of dynamic map structure
-        pickle.dump(self.dynamicalMaps, open(directory+'/'+self.name+'.simData', 'wb'))
+        # save dynamic map data
+        pickle.dump(self.dynamicalMaps, open(workingDirectory+'/'+self.name+'.dynData', 'wb'))
     
     def load(self, directory, folderName):
         workingDirectory = directory + "/" +folderName
@@ -803,8 +817,17 @@ class dualSimulation():
             self.unoccupiedSimulation.load(workingDirectory, self.name+"_unoccupied")
             self.unoccupiedSimulation.setupSim()
             
-            # TODO: Implement loading of dynamic map structure
-            loadData = pickle.load(open(workingDirectory +"/"+self.name+'.simData', 'rb'))
+            # load dynamic map data
+            self.dynamicalMaps = pickle.load(open(workingDirectory +"/"+self.name+'.dynData', 'rb'))
+            
+            # extract additional data
+            infoDict = loadDictFromJson(workingDirectory, self.name+"_simulationInfo")
+            self.initialOccupations = infoDict["initialOccupations"]
+            
+            # recompute thermalization
+            self.analyticalSystemOccupancy = self.occupiedSimulation.analyticalSystemOccupancy
+            self.computeNumericThermalization(searchSteps=20)
+            
             
     def saveAll(self, directory):
         self.save(directory)
@@ -821,6 +844,7 @@ class dualSimulation():
                      "mu":self.occupiedSimulation.mu,
                      "timeSteps":len(list(self.occupiedSimulation.correlations.keys())),
                      "tMax":float(list(self.occupiedSimulation.correlations.keys())[-1]),
+                     "initialOccupations":self.initialOccupations,
                      }
         
         saveDictAsJson(workingDirectory, self.name+"_simulationInfo", infoDict)
@@ -828,6 +852,8 @@ class dualSimulation():
         # save plots
         saveFigure(workingDirectory, self.name+"_dynamicalEvo",self.plotBothOccupationsFromMap(display=False))
         saveFigure(workingDirectory, self.name+"_compareEvo",self.plotBothOccupationsBoth(display=False))
+        saveFigure(workingDirectory, self.name+"_rangeInitial",self.plotManyOccupations(self.initialOccupations, display=False))
+        saveFigure(workingDirectory, self.name+"_maxDeviation",self.plotMaximumDeviationOverOccupation(display=False))
     
     # ----------------------------------------------
     # Analytical methods
@@ -848,6 +874,8 @@ class dualSimulation():
             dynamicalMapAlt = np.array([[(1-C_unocc),(1-C_occ)],[C_unocc,C_occ]],dtype=np.complex128)
             #unitary = unitary+ [isUnitary(dynamicalMapAlt, printProduct=False)]
             self.dynamicalMaps[time] = dynamicalMapAlt
+            
+        self.computeNumericThermalization(searchSteps=20)
         #print(unitary)
         #print(self.dynamicalMaps[times[0]])
         #print(self.dynamicalMaps[times[1]])
@@ -867,6 +895,153 @@ class dualSimulation():
             
         return states
     
+    # helper method for binarySearchEigenvector - searches for p value which best satisfies dynamicMap [1-p, p] = a[1-p, p]
+    def binarySearchEigenvector(self, dynamicMap, lowerBound, upperBound, searchSteps):
+        
+        # select upper and lower test values
+        pLow = lowerBound + (upperBound-lowerBound)/3
+        pHigh =lowerBound + 2*(upperBound-lowerBound)/3
+        
+        # build corresponding vectors
+        vecLow = np.array([1-pLow, pLow])
+        vecHigh = np.array([1-pHigh, pHigh])
+        
+        # matrix multiply these w/dynamic map
+        prodLow = np.matmul(dynamicMap, vecLow)
+        prodHigh = np.matmul(dynamicMap, vecHigh)
+        
+        # compute difference between in/out vectors
+        diffLow = np.linalg.norm(vecLow-prodLow)
+        diffHigh = np.linalg.norm(vecHigh-prodHigh)
+        
+        # base case
+        if(searchSteps==1):
+            # select and return appropriate vector
+            if(diffLow <= diffHigh):
+                return vecLow, diffLow
+            return vecHigh, diffHigh
+        
+        # recursive case
+        else:
+            if(diffLow <= diffHigh):
+                newLowerBound = lowerBound
+                newUpperBounds = lowerBound + (upperBound-lowerBound)/2
+                return self.binarySearchEigenvector(dynamicMap, newLowerBound, newUpperBounds, searchSteps-1)
+            
+            else:
+                newLowerBound = lowerBound + (upperBound-lowerBound)/2
+                newUpperBounds = upperBound
+                return self.binarySearchEigenvector(dynamicMap, newLowerBound, newUpperBounds, searchSteps-1)
+    
+    def computeNumericThermalization(self, searchSteps=10, minTime=1): # note minTime exists to remove early outliers from data
+        times = list(self.dynamicalMaps.keys())
+        
+        diffAbs1s = []
+        for i in range(1, len(times)):
+            timePrev = times[i-1]
+            time = times[i]
+            diff1 = self.dynamicalMaps[time] - self.dynamicalMaps[timePrev]
+            diffAbs1s = diffAbs1s + [np.linalg.norm(diff1)]
+        
+        minTimeIndex = np.argwhere(np.array(times)>minTime)[0][0]
+        timeStable = times[np.argmin(diffAbs1s[minTimeIndex:])]
+        stableMap = self.dynamicalMaps[timeStable]
+        
+        closestVector, err = self.binarySearchEigenvector(stableMap, 0, 1, searchSteps)
+        #print(closestVector)
+        #print(err)
+        self.numericSystemOccupancy = closestVector[1]
+        #return closestVector[1]
+    
+    # ----------------------------------------------
+    # Non markovianity methods 0 - Maximum gap
+    # ----------------------------------------------
+    
+    def maximumDeviation(self, initialOccupation=1):
+        # get system occupation data
+        times = list(self.dynamicalMaps.keys())
+        states = self.computeStateEvolution(initialOccupation)
+        systemOccupation = np.array([val[1].real for key, val in states.items()])
+        
+        # get relative maxima
+        maxDeviation = None
+        maxTime = None
+        indexMax = np.argmax(systemOccupation)
+        # identify non-thermalized maxima
+        if(not(indexMax == len(systemOccupation)-1) and not(indexMax == 0) and systemOccupation[indexMax-1] <= systemOccupation[indexMax] and systemOccupation[indexMax+1] <= systemOccupation[indexMax]):
+            maxDeviation = initialOccupation - systemOccupation[indexMax]
+            
+            maxTime = times[indexMax]
+            
+        # get relative minima
+        minDeviation = None
+        minTime = None
+        indexMin = np.argmin(systemOccupation)
+        # identify non-thermalized minima
+        if(not(indexMin == len(systemOccupation)-1) and not(indexMin == 0) and systemOccupation[indexMin-1] > systemOccupation[indexMin] and systemOccupation[indexMin+1] > systemOccupation[indexMin]):
+            minDeviation = initialOccupation - systemOccupation[indexMin]
+            
+            minTime= times[indexMin]
+        
+        # compare relative extrema
+        if(maxDeviation is None and minDeviation is None):
+            return None, None, None
+        
+        if(maxDeviation is None):
+            return minDeviation, minTime, systemOccupation[indexMin]
+        
+        if(minDeviation is None):
+            return maxDeviation, maxTime
+        
+        if(abs(maxDeviation) >= abs(minDeviation)):
+            return maxDeviation, maxTime, systemOccupation[indexMax]
+        
+        return minDeviation, minTime, systemOccupation[indexMin]
+        
+    def maximumDeviationFromThermalization(self):
+        return self.maximumDeviation(self.numericSystemOccupancy)
+    
+    # plots maximum deviation over initial occupancy
+    def plotMaximumDeviationOverOccupation(self, fig=None, ax=None, figParams=figStandardParams, plotThermalization=True, display=True, numPoints=1000):
+        
+        occupancies = np.linspace(0,1, num=numPoints)
+        maxDeviations = [self.maximumDeviation(initialOccupation=occupancy)[0] for occupancy in occupancies]
+        
+        if(fig is None or ax is None):
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
+        pltTimesNewRoman()
+        
+        # set axis labels and related parameters
+        ax.set_xlabel("Initial occupancy",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
+        ax.set_ylabel("Max deviation",fontsize=figParams["fontsize"], labelpad=figParams["labelpad"])
+        
+        ax.tick_params(axis='both', which='major', labelsize=figParams["axisTickFont"], direction="in", length=2)
+        
+        ax.grid(which="both", color=figParams["gridColor"], linestyle=figParams["gridStyle"], linewidth=figParams["gridWidth"])
+        
+        ax.plot(occupancies, maxDeviations, color=figParams["plotColor"], linewidth=figParams["markerWidth"])
+        
+        if(plotThermalization):
+            ax.axvline(x=self.numericSystemOccupancy, color="r", linestyle="-", linewidth=figParams["markerWidth"])
+
+        if(display):
+            plt.show()
+            
+        return fig
+
+    # ----------------------------------------------
+    # Non markovianity methods 1 - Memory kernels
+    # ----------------------------------------------
+    
+    # ----------------------------------------------
+    # Non markovianity methods 2 - Information backflow
+    # ----------------------------------------------
+    
+    # ----------------------------------------------
+    # Non markovianity methods 3 - Failure of CP positivity
+    # ----------------------------------------------
+    
     # ----------------------------------------------
     # Simulation methods
     # ----------------------------------------------
@@ -881,7 +1056,7 @@ class dualSimulation():
     # Plotting methods
     # ----------------------------------------------
     
-    def plotOccupationFromMap(self, initialOccupation, legend=False, label=r"$n_{occ}(t)$", plotThermalization=False, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=None, ax=None, figParams=figStandardParams, plotColor="k", analyticalThermalizationColor='r', display=True):
+    def plotOccupationFromMap(self, initialOccupation, legend=False, label=r"$n_{occ}(t)$", plotThermalization=False, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=None, ax=None, figParams=figStandardParams, analyticalThermalizationColor='r', display=True):
         # get system occupation data
         states = self.computeStateEvolution(initialOccupation)
         systemOccupation = np.array([val[1] for key, val in states.items()])
@@ -903,11 +1078,11 @@ class dualSimulation():
         # get and plot occupation data over time
         times = list(self.dynamicalMaps.keys())
         
-        ax.plot(times, systemOccupation.real, color=plotColor, linewidth=figParams["markerWidth"], label=label)
+        ax.plot(times, systemOccupation.real, color=figParams["plotColor"], linewidth=figParams["markerWidth"], label=label)
         
 
         if(plotThermalization):
-            ax.plot(times, np.full(len(times), self.analyticalSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"], label=thermalizationLabel)
+            ax.plot(times, np.full(len(times), self.numericSystemOccupancy), color=analyticalThermalizationColor, linewidth=figParams["markerWidth"], label=thermalizationLabel)
         
         if(legend):
             ax.legend(loc=figParams["legendLocMid"],fontsize=figParams["legendFont"])
@@ -927,8 +1102,8 @@ class dualSimulation():
         mainFigArgs = figParams.copy()
 
         
-        fig = self.plotOccupationFromMap(1, legend=False,plotThermalization=False, label=r"dynamic $n_{occ}(t=0)=1$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=mainFigArgs, plotColor="k", analyticalThermalizationColor='r', display=False)
-        fig = self.plotOccupationFromMap(0, legend=False,plotThermalization=True, label=r"dynamic $n_{occ}(t=0)=0$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=mainFigArgs, plotColor="g", analyticalThermalizationColor='r', display=False)
+        fig = self.plotOccupationFromMap(1, legend=False,plotThermalization=False, label=r"dynamic $n_{occ}(t=0)=1$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=copyDict(mainFigArgs, {"plotColor":"k"}), analyticalThermalizationColor='r', display=False)
+        fig = self.plotOccupationFromMap(0, legend=False,plotThermalization=True, label=r"dynamic $n_{occ}(t=0)=0$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=copyDict(mainFigArgs, {"plotColor":"g"}), analyticalThermalizationColor='r', display=False)
         
         ax.legend(loc=figParams["legendLocLow"], fontsize=figParams["legendFont"])
         
@@ -938,6 +1113,31 @@ class dualSimulation():
         # return fig
         return fig
     
+    def plotManyOccupations(self, initialOccupations, fig=None, ax=None, figParams=figStandardParams, display=True, plotThermalization=True):
+        if(fig is None or ax is None):
+            fig = plt.figure(figsize=(figParams["width"]/figParams["inch"], figParams["heightOverWidth"] * figParams["width"]/figParams["inch"]), dpi=figParams["dpi"])
+            ax = fig.add_subplot()
+        pltTimesNewRoman()
+    
+        
+        for i in range(0, len(initialOccupations)):
+            color = plt.cm.seismic(2*i/len(initialOccupations))
+            tempFigArgs = copyDict(figParams, {"plotColor":color})
+            fig = self.plotOccupationFromMap(initialOccupations[i], legend=False,plotThermalization=False, label=r"$n_{occ}(t=0)="+str(initialOccupations[i])+r"$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=tempFigArgs, analyticalThermalizationColor='r', display=False)
+            dev, time, val = self.maximumDeviation(initialOccupation=initialOccupations[i])
+            ax.scatter([time], [val], marker="x", color=tempFigArgs["plotColor"], s=tempFigArgs["markerArea"], linewidth=tempFigArgs["markerWidth"])
+        
+        
+        if(plotThermalization):
+            times = list(self.dynamicalMaps.keys())
+            ax.plot(times, np.full(len(times), self.numericSystemOccupancy), color="k", linewidth=figParams["markerWidth"], label="$\lim_{t\to\infty}(n_{occ}(t))$")
+            
+        if(display):
+            plt.show()
+            
+        # return fig
+        return fig
+        
     # compares simulated vs dynamic plots
     def plotBothOccupationsBoth(self, fig=None, ax=None, figParams=figStandardParams, display=True):
         if(fig is None or ax is None):
@@ -946,25 +1146,25 @@ class dualSimulation():
         pltTimesNewRoman()
         
         # define all plotting dicts
-        outlineParams = copyDict(figParams, {"markerWidth":1.2})
-        simParams = copyDict(figParams, {"markerWidth":0.65*outlineParams["markerWidth"]})
-        mainFigArgs = copyDict(figParams, {"markerWidth":2.3*outlineParams["markerWidth"]})
+        outlineParams = copyDict(figParams, {"markerWidth":1.2, "plotColor":"w"})
+        simParams = copyDict(figParams, {"markerWidth":0.65*outlineParams["markerWidth"], "plotColor":"k"})
+        mainFigArgs = copyDict(figParams, {"markerWidth":2.3*outlineParams["markerWidth"], "plotColor":"cornflowerblue"})
         
         # plot dynamic map line
-        fig = self.plotOccupationFromMap(1, legend=False,plotThermalization=False, label=r"dynamic $n_{occ}$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=mainFigArgs, plotColor="cornflowerblue", analyticalThermalizationColor='r', display=False)
-        fig = self.plotOccupationFromMap(0, legend=False,plotThermalization=False, label=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=mainFigArgs, plotColor="cornflowerblue", analyticalThermalizationColor='r', display=False)
+        fig = self.plotOccupationFromMap(1, legend=False,plotThermalization=False, label=r"dynamic $n_{occ}$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=mainFigArgs, analyticalThermalizationColor='r', display=False)
+        fig = self.plotOccupationFromMap(0, legend=False,plotThermalization=False, label=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", fig=fig, ax=ax, figParams=mainFigArgs, analyticalThermalizationColor='r', display=False)
         
         # plot large white outline lines
-        self.occupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="-",plotThermalization=False, axLims=[0,1], densityLabel=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=outlineParams, plotColor="w", analyticalThermalizationColor="r", display=False)
-        self.unoccupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="-",plotThermalization=False, axLims=[0,1], densityLabel=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=outlineParams, plotColor="w", analyticalThermalizationColor="r", display=False)
+        self.occupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="-",plotThermalization=False, axLims=[0,1], densityLabel=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=outlineParams, analyticalThermalizationColor="r", display=False)
+        self.unoccupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="-",plotThermalization=False, axLims=[0,1], densityLabel=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=outlineParams, analyticalThermalizationColor="r", display=False)
         
         # plot smaller black dotted line
-        self.occupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="--",plotThermalization=False, axLims=[0,1], densityLabel=r"simulated $n_{occ}$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=simParams, plotColor="k", analyticalThermalizationColor="r", display=False)
-        self.unoccupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="--",plotThermalization=False, axLims=[0,1], densityLabel=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=simParams, plotColor="k", analyticalThermalizationColor="r", display=False)
+        self.occupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="--",plotThermalization=False, axLims=[0,1], densityLabel=r"simulated $n_{occ}$", thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=simParams, analyticalThermalizationColor="r", display=False)
+        self.unoccupiedSimulation.plotSystemOccupation(fig=fig, ax=ax, legend=False, linestyle="--",plotThermalization=False, axLims=[0,1], densityLabel=None, thermalizationLabel=r"$\lim_{t\to\infty}(n_{occ}(t))$", figParams=simParams, analyticalThermalizationColor="r", display=False)
         
         
         times = list(self.dynamicalMaps.keys())
-        ax.plot(times, np.full(len(times), self.analyticalSystemOccupancy), color="r", linewidth=figParams["markerWidth"], label="$\lim_{t\to\infty}(n_{occ}(t))$")
+        ax.plot(times, np.full(len(times), self.numericSystemOccupancy), color="r", linewidth=figParams["markerWidth"], label="$\lim_{t\to\infty}(n_{occ}(t))$")
         
         
         ax.legend(loc=figParams["legendLocLow"], fontsize=figParams["legendFont"])
@@ -978,16 +1178,16 @@ class dualSimulation():
 # =============================================================================
 # Testing
 # =============================================================================
-spectralFunction = lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)
-prefactor = 0.005
+"""spectralFunction = lambda omega, prefactor, bandwidth: prefactor * np.sqrt(1.-(omega/bandwidth)**2)
+prefactor = 0.2
 n=300
-bandwidth = 1
+bandwidth = 2
 energyScale = 0
-beta = 2
-mu = 1
+beta = 7
+mu = 0.1
 
-dt = 1
-tMax = 100
+dt = 0.1
+tMax = 50"""
 """
 sim = simulation("testSim", spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
 sim.setupSim()
@@ -1027,7 +1227,10 @@ print(sim.correlations[list(sim.correlations.keys())[-1]])"""
 dualSimulation = dualSimulation("testDual",  spectralFunction, prefactor, bandwidth, n, energyScale, beta, mu)
 dualSimulation.simulateCompute(dt, tMax)
 dualSimulation.computeDynamicMap()
-dualSimulation.plotOccupationFromMap(0, display=True)
-dualSimulation.unoccupiedSimulation.plotSystemOccupation(display=True)
-dualSimulation.plotBothOccupationsFromMap(display=True)
+print("numeric thermalization: ", dualSimulation.numericSystemOccupancy)
+print("maximumDeviation:", dualSimulation.maximumDeviation(initialOccupation=0.8))
+dualSimulation.plotMaximumDeviationOverOccupation()
+dualSimulation.plotOccupationFromMap(0.55, display=True, plotThermalization=True)
+#dualSimulation.unoccupiedSimulation.plotSystemOccupation(display=True)
+#dualSimulation.plotBothOccupationsFromMap(display=True)
 dualSimulation.plotBothOccupationsBoth(display=True)"""
